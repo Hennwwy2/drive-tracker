@@ -60,6 +60,13 @@
     </div>
   </div>
 
+  <!-- Quick Location Search (always visible above map) -->
+  <div id="quick-search">
+    <input type="text" id="quick-search-input" placeholder="Type nearby street/intersection from Splashin..." autocomplete="off">
+    <button id="quick-search-btn" onclick="handleQuickSearch()">Send</button>
+    <div class="autocomplete-list" id="quick-suggestions"></div>
+  </div>
+
   <!-- Map -->
   <div id="map"></div>
 

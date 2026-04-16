@@ -167,6 +167,119 @@ const state = {
   map: null
 };
 
+// --- Quick Location Search ---
+let quickSearchTimer = null;
+
+function setupQuickSearch() {
+  const input = document.getElementById('quick-search-input');
+  const list = document.getElementById('quick-suggestions');
+
+  input.addEventListener('input', () => {
+    clearTimeout(quickSearchTimer);
+    const query = input.value.trim();
+
+    if (query.length < 2) {
+      list.classList.remove('visible');
+      return;
+    }
+
+    quickSearchTimer = setTimeout(async () => {
+      try {
+        // Bias results toward the route area if we have one
+        let viewbox = '';
+        if (state.routeCoords.length) {
+          const bounds = state.routePolyline
+            ? state.routePolyline.getBounds()
+            : state.map.getBounds();
+          const sw = bounds.getSouthWest();
+          const ne = bounds.getNorthEast();
+          // Expand bounds a bit for flexibility
+          const pad = 0.5;
+          viewbox = `&viewbox=${sw.lng - pad},${ne.lat + pad},${ne.lng + pad},${sw.lat - pad}&bounded=0`;
+        }
+
+        const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=5${viewbox}`;
+        const resp = await fetch(url, {
+          headers: { 'User-Agent': 'DriveTrackerPWA/1.0' }
+        });
+        const results = await resp.json();
+
+        if (!results.length) {
+          list.classList.remove('visible');
+          return;
+        }
+
+        list.innerHTML = '';
+        results.forEach(result => {
+          const item = document.createElement('div');
+          item.className = 'autocomplete-item';
+
+          const mainName = result.display_name.split(',')[0];
+          const detail = result.display_name.split(',').slice(1, 3).join(',').trim();
+          item.innerHTML = `<div class="addr-main">${mainName}</div><div class="addr-detail">${detail}</div>`;
+
+          item.addEventListener('click', () => {
+            const lat = parseFloat(result.lat);
+            const lng = parseFloat(result.lon);
+            processLocationUpdate(lat, lng);
+            input.value = '';
+            list.classList.remove('visible');
+            showStatus('last-update-info', `Updated: ${mainName} (${lat.toFixed(4)}, ${lng.toFixed(4)})`);
+          });
+
+          list.appendChild(item);
+        });
+
+        list.classList.add('visible');
+      } catch (err) {
+        console.error('Quick search error:', err);
+      }
+    }, 500);
+  });
+
+  // Also allow pressing Enter to search and auto-pick the first result
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      handleQuickSearch();
+    }
+  });
+
+  document.addEventListener('click', (e) => {
+    if (!e.target.closest('#quick-search')) {
+      list.classList.remove('visible');
+    }
+  });
+}
+
+async function handleQuickSearch() {
+  const input = document.getElementById('quick-search-input');
+  const query = input.value.trim();
+  if (!query) return;
+
+  try {
+    const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=1`;
+    const resp = await fetch(url, {
+      headers: { 'User-Agent': 'DriveTrackerPWA/1.0' }
+    });
+    const results = await resp.json();
+
+    if (results.length) {
+      const lat = parseFloat(results[0].lat);
+      const lng = parseFloat(results[0].lon);
+      processLocationUpdate(lat, lng);
+      input.value = '';
+      document.getElementById('quick-suggestions').classList.remove('visible');
+      const name = results[0].display_name.split(',')[0];
+      showStatus('last-update-info', `Updated: ${name} (${lat.toFixed(4)}, ${lng.toFixed(4)})`);
+    } else {
+      showStatus('last-update-info', 'Location not found. Try a more specific name.', 'error');
+    }
+  } catch (err) {
+    showStatus('last-update-info', 'Search failed.', 'error');
+  }
+}
+
 // --- Tap-on-Map Mode ---
 let tapModeActive = false;
 let tapMarker = null;
@@ -660,6 +773,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Render saved addresses
   renderSavedAddresses();
+
+  // Set up quick search for location updates
+  setupQuickSearch();
 
   // Set up autocomplete on address fields
   setupAutocomplete('start-address', 'start-suggestions', 'start');
