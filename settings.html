@@ -43,6 +43,18 @@
       <div id="firebase-status" class="status-line"></div>
     </div>
 
+    <!-- Transfer Settings -->
+    <div class="section">
+      <div class="section-title">Transfer to Another Device</div>
+      <p style="font-size: 12px; color: #888; margin-bottom: 10px;">Generate a link with all your settings baked in. Open it on your phone to auto-load everything.</p>
+      <button onclick="generateTransferLink()">Generate Transfer Link</button>
+      <div id="transfer-output" class="hidden" style="margin-top: 10px;">
+        <input type="text" id="transfer-link" readonly style="font-size: 12px; background: #0f3460;">
+        <button onclick="copyTransferLink()" style="margin-top: 6px;" class="btn-secondary">Copy Link</button>
+      </div>
+      <div id="transfer-status" class="status-line"></div>
+    </div>
+
     <!-- Clear Data -->
     <div class="section">
       <div class="section-title">Data</div>
@@ -74,6 +86,9 @@
 
   <script>
     document.addEventListener('DOMContentLoaded', () => {
+      // Check for incoming transfer config in URL hash
+      importFromURL();
+
       // Restore saved values
       const orsKey = localStorage.getItem('ors-api-key');
       if (orsKey) document.getElementById('ors-key').value = orsKey;
@@ -120,6 +135,64 @@
         document.getElementById('firebase-url').value = '';
         document.getElementById('firebase-api-key').value = '';
         showStatus('clear-status', 'All data cleared.');
+      }
+    }
+
+    // --- Transfer ---
+    function generateTransferLink() {
+      const data = {};
+      const orsKey = localStorage.getItem('ors-api-key');
+      const fbConfig = localStorage.getItem('firebase-config');
+      const savedAddr = localStorage.getItem('saved-addresses');
+
+      if (orsKey) data.o = orsKey;
+      if (fbConfig) data.f = fbConfig;
+      if (savedAddr) data.a = savedAddr;
+
+      if (!Object.keys(data).length) {
+        showStatus('transfer-status', 'Nothing to transfer. Save your settings first.', true);
+        return;
+      }
+
+      const encoded = btoa(JSON.stringify(data));
+      const baseUrl = window.location.origin + window.location.pathname;
+      const link = `${baseUrl}?import=${encodeURIComponent(encoded)}`;
+
+      document.getElementById('transfer-link').value = link;
+      document.getElementById('transfer-output').classList.remove('hidden');
+      showStatus('transfer-status', 'Link generated! Copy it and open on your phone.');
+    }
+
+    function copyTransferLink() {
+      const link = document.getElementById('transfer-link').value;
+      navigator.clipboard.writeText(link).then(() => {
+        showStatus('transfer-status', 'Copied to clipboard!');
+      }).catch(() => {
+        // Fallback: select the text
+        document.getElementById('transfer-link').select();
+        showStatus('transfer-status', 'Select all and copy manually.');
+      });
+    }
+
+    function importFromURL() {
+      const params = new URLSearchParams(window.location.search);
+      const importData = params.get('import');
+      if (!importData) return;
+
+      try {
+        const data = JSON.parse(atob(decodeURIComponent(importData)));
+        let count = 0;
+
+        if (data.o) { localStorage.setItem('ors-api-key', data.o); count++; }
+        if (data.f) { localStorage.setItem('firebase-config', data.f); count++; }
+        if (data.a) { localStorage.setItem('saved-addresses', data.a); count++; }
+
+        // Clean URL
+        window.history.replaceState({}, '', window.location.pathname);
+
+        showStatus('transfer-status', `Imported ${count} setting(s) from link! You're all set.`);
+      } catch (err) {
+        showStatus('transfer-status', 'Invalid transfer link.', true);
       }
     }
 
