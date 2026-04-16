@@ -43,16 +43,34 @@ function initFirebase(config) {
       initialLoadDone = true;
     });
 
-    updatesRef.on('child_added', (snapshot) => {
+    updatesRef.on('child_added', async (snapshot) => {
       if (!initialLoadDone) return; // Skip entries that existed before we connected
 
       const data = snapshot.val();
-      if (data && data.lat !== undefined && data.lng !== undefined) {
-        const timestamp = data.timestamp || Date.now();
-        console.log('Firebase update received:', data);
+      if (!data) return;
+      const timestamp = data.timestamp || Date.now();
+      console.log('Firebase update received:', data);
 
+      // Handle direct lat/lng updates
+      if (data.lat !== undefined && data.lng !== undefined) {
         if (firebaseOnUpdate) {
           firebaseOnUpdate(parseFloat(data.lat), parseFloat(data.lng), timestamp);
+        }
+        return;
+      }
+
+      // Handle street name updates (from OCR shortcut) — geocode on the fly
+      if (data.street) {
+        try {
+          const chicagoViewbox = '&viewbox=-88.0,42.1,-87.5,41.6&bounded=1';
+          const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(data.street)}&format=json&limit=1${chicagoViewbox}`;
+          const resp = await fetch(url, { headers: { 'User-Agent': 'DriveTrackerPWA/1.0' } });
+          const results = await resp.json();
+          if (results.length && firebaseOnUpdate) {
+            firebaseOnUpdate(parseFloat(results[0].lat), parseFloat(results[0].lon), timestamp);
+          }
+        } catch (err) {
+          console.error('Failed to geocode street from Firebase:', err);
         }
       }
     });

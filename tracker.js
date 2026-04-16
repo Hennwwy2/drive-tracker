@@ -201,6 +201,7 @@ function processLocationUpdate(lat, lng, timestamp) {
   updateConfirmedMarker(snap.snappedLat, snap.snappedLng);
   ensureDriverMarker();
   if (!state.predictor.animationFrameId) startAnimation();
+  startCountdown(); // Reset countdown on each update
   updateInfoPanel();
   const time = new Date(timestamp || Date.now()).toLocaleTimeString();
   showStatus('last-update-info', `Last: ${time} (${snap.perpendicularDistance.toFixed(0)}m from route)`);
@@ -228,6 +229,7 @@ function startAnimation() {
     if (distance !== null) {
       const pos = distanceToPosition(distance, state.routeCoords, state.routeDistances);
       if (state.driverMarker) state.driverMarker.setLatLng(pos);
+      followBlip(pos);
       updateRouteColors(distance);
       updateInfoPanel();
     }
@@ -325,6 +327,65 @@ function connectFirebase() {
   setFirebaseUpdateCallback((lat, lng, timestamp) => {
     processLocationUpdate(lat, lng, timestamp);
   });
+}
+
+// --- Auto-Follow ---
+let followMode = false;
+let lastFollowPan = 0;
+
+function toggleFollow() {
+  followMode = !followMode;
+  const btn = document.getElementById('follow-btn');
+  if (followMode) {
+    btn.textContent = 'Following';
+    btn.classList.add('active');
+  } else {
+    btn.textContent = 'Follow';
+    btn.classList.remove('active');
+  }
+}
+
+function followBlip(pos) {
+  if (!followMode) return;
+  const now = Date.now();
+  if (now - lastFollowPan < 3000) return; // Only pan every 3 seconds
+  lastFollowPan = now;
+  state.map.panTo(pos, { animate: true, duration: 0.5 });
+}
+
+// --- Update Countdown ---
+const UPDATE_INTERVAL = 10 * 60 * 1000; // 10 minutes in ms
+let countdownIntervalId = null;
+
+function startCountdown() {
+  if (countdownIntervalId) clearInterval(countdownIntervalId);
+  document.getElementById('countdown-bar').classList.remove('hidden');
+
+  countdownIntervalId = setInterval(() => {
+    const p = state.predictor;
+    if (!p.updates.length) return;
+
+    const lastTime = p.updates[p.updates.length - 1].timestamp;
+    const elapsed = Date.now() - lastTime;
+    const remaining = Math.max(0, UPDATE_INTERVAL - elapsed);
+
+    const mins = Math.floor(remaining / 60000);
+    const secs = Math.floor((remaining % 60000) / 1000);
+    const text = document.getElementById('countdown-text');
+    const fill = document.getElementById('countdown-fill');
+
+    if (remaining <= 0) {
+      text.textContent = 'Update expected now...';
+      text.style.color = '#ff6b35';
+      fill.style.width = '100%';
+      fill.style.background = '#ff6b35';
+    } else {
+      text.textContent = `Next update in ${mins}:${secs.toString().padStart(2, '0')}`;
+      text.style.color = '#e94560';
+      fill.style.width = `${((UPDATE_INTERVAL - remaining) / UPDATE_INTERVAL) * 100}%`;
+      fill.style.background = '#e94560';
+    }
+  }, 1000);
 }
 
 // --- Utility ---
