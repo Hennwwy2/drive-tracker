@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="theme-color" content="#1a1a2e">
+  <title>Route Setup — Drive Tracker</title>
+  <link rel="manifest" href="manifest.json">
+  <link rel="apple-touch-icon" href="icon-192.png">
+  <link rel="stylesheet" href="shared.css">
+</head>
+<body>
+  <div class="page-header">
+    <h1>Route Setup</h1>
+  </div>
+
+  <div class="page-content">
+    <!-- Saved Addresses -->
+    <div class="section">
+      <div class="section-title">Saved Addresses</div>
+      <div id="saved-addresses-list" class="saved-list"></div>
+      <p style="font-size: 11px; color: #666; margin-bottom: 8px;">Tap a chip to fill Start (if empty) or End</p>
+    </div>
+
+    <!-- Start & End -->
+    <div class="section">
+      <div class="section-title">Route</div>
+      <div class="input-group autocomplete-wrap">
+        <label for="start-address">Start Address</label>
+        <input type="text" id="start-address" placeholder="e.g. 123 Main St, Chicago" autocomplete="off">
+        <div class="autocomplete-list" id="start-suggestions"></div>
+      </div>
+      <div class="input-group autocomplete-wrap">
+        <label for="end-address">End Address</label>
+        <input type="text" id="end-address" placeholder="e.g. 456 Oak Ave, Chicago" autocomplete="off">
+        <div class="autocomplete-list" id="end-suggestions"></div>
+      </div>
+      <button id="get-route-btn" onclick="handleGetRoute()">Get Route</button>
+      <div id="route-status" class="status-line"></div>
+    </div>
+
+    <!-- Save Address -->
+    <div class="section">
+      <div class="section-title">Save an Address</div>
+      <p style="font-size: 11px; color: #666; margin-bottom: 8px;">Search for an address above first, then save it here</p>
+      <div class="save-address-row">
+        <input type="text" id="save-label" placeholder="Label (e.g. Home)">
+        <button onclick="handleSaveAddress('start')">Save Start</button>
+        <button onclick="handleSaveAddress('end')">Save End</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Nav Bar -->
+  <nav class="nav-bar">
+    <a href="index.html" class="nav-item">
+      <span class="nav-icon">&#8962;</span>
+      Home
+    </a>
+    <a href="tracker.html" class="nav-item">
+      <span class="nav-icon">&#9737;</span>
+      Tracker
+    </a>
+    <a href="route-setup.html" class="nav-item active">
+      <span class="nav-icon">&#9881;</span>
+      Route
+    </a>
+    <a href="settings.html" class="nav-item">
+      <span class="nav-icon">&#9881;</span>
+      Settings
+    </a>
+  </nav>
+
+  <script src="route.js"></script>
+  <script>
+    // --- State ---
+    let autocompleteTimer = null;
+    const selectedCoords = { start: null, end: null };
+
+    // --- Autocomplete ---
+    function setupAutocomplete(inputId, listId, coordKey) {
+      const input = document.getElementById(inputId);
+      const list = document.getElementById(listId);
+
+      input.addEventListener('input', () => {
+        clearTimeout(autocompleteTimer);
+        const query = input.value.trim();
+        if (query.length < 3) { list.classList.remove('visible'); return; }
+
+        autocompleteTimer = setTimeout(async () => {
+          try {
+            const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=5&addressdetails=1`;
+            const resp = await fetch(url, { headers: { 'User-Agent': 'DriveTrackerPWA/1.0' } });
+            const results = await resp.json();
+            if (!results.length) { list.classList.remove('visible'); return; }
+
+            list.innerHTML = '';
+            results.forEach(result => {
+              const item = document.createElement('div');
+              item.className = 'autocomplete-item';
+              const mainName = result.display_name.split(',')[0];
+              const detail = result.display_name.split(',').slice(1, 4).join(',').trim();
+              item.innerHTML = `<div class="addr-main">${mainName}</div><div class="addr-detail">${detail}</div>`;
+              item.addEventListener('click', () => {
+                input.value = result.display_name;
+                selectedCoords[coordKey] = { lat: parseFloat(result.lat), lng: parseFloat(result.lon) };
+                list.classList.remove('visible');
+              });
+              list.appendChild(item);
+            });
+            list.classList.add('visible');
+          } catch (err) { console.error('Autocomplete error:', err); }
+        }, 600);
+      });
+
+      document.addEventListener('click', (e) => {
+        if (!e.target.closest('.autocomplete-wrap')) list.classList.remove('visible');
+      });
+    }
+
+    // --- Saved Addresses ---
+    function getSavedAddresses() {
+      const s = localStorage.getItem('saved-addresses');
+      return s ? JSON.parse(s) : [];
+    }
+
+    function renderSavedAddresses() {
+      const list = document.getElementById('saved-addresses-list');
+      const addresses = getSavedAddresses();
+      list.innerHTML = '';
+      addresses.forEach((entry, i) => {
+        const chip = document.createElement('div');
+        chip.className = 'saved-chip';
+        chip.innerHTML = `<span class="chip-label">${entry.label}</span>`;
+        chip.addEventListener('click', (e) => {
+          if (e.target.classList.contains('chip-delete')) return;
+          const startVal = document.getElementById('start-address').value.trim();
+          if (!startVal || document.activeElement === document.getElementById('start-address')) {
+            document.getElementById('start-address').value = entry.address;
+            selectedCoords.start = { lat: entry.lat, lng: entry.lng };
+          } else {
+            document.getElementById('end-address').value = entry.address;
+            selectedCoords.end = { lat: entry.lat, lng: entry.lng };
+          }
+        });
+        const del = document.createElement('span');
+        del.className = 'chip-delete';
+        del.textContent = '\u00d7';
+        del.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const addrs = getSavedAddresses();
+          addrs.splice(i, 1);
+          localStorage.setItem('saved-addresses', JSON.stringify(addrs));
+          renderSavedAddresses();
+        });
+        chip.appendChild(del);
+        list.appendChild(chip);
+      });
+    }
+
+    function handleSaveAddress(which) {
+      const label = document.getElementById('save-label').value.trim();
+      const inputId = which === 'start' ? 'start-address' : 'end-address';
+      const address = document.getElementById(inputId).value.trim();
+      const coords = selectedCoords[which];
+      if (!label) { showStatus('route-status', 'Enter a label.', true); return; }
+      if (!address || !coords) { showStatus('route-status', 'Pick an address from autocomplete first.', true); return; }
+      const addresses = getSavedAddresses();
+      addresses.push({ label, address, lat: coords.lat, lng: coords.lng });
+      localStorage.setItem('saved-addresses', JSON.stringify(addresses));
+      document.getElementById('save-label').value = '';
+      renderSavedAddresses();
+      showStatus('route-status', `"${label}" saved!`);
+    }
+
+    // --- Get Route ---
+    async function handleGetRoute() {
+      const startAddr = document.getElementById('start-address').value.trim();
+      const endAddr = document.getElementById('end-address').value.trim();
+      const apiKey = localStorage.getItem('ors-api-key');
+
+      if (!startAddr || !endAddr) { showStatus('route-status', 'Enter both addresses.', true); return; }
+      if (!apiKey) { showStatus('route-status', 'Set your ORS API key in Settings first.', true); return; }
+
+      const btn = document.getElementById('get-route-btn');
+      btn.disabled = true;
+      btn.textContent = 'Loading...';
+
+      try {
+        let startCoords = selectedCoords.start;
+        let endCoords = selectedCoords.end;
+
+        if (!startCoords) {
+          showStatus('route-status', 'Geocoding start...');
+          startCoords = await geocodeAddress(startAddr);
+          await new Promise(r => setTimeout(r, 1100));
+        }
+        if (!endCoords) {
+          showStatus('route-status', 'Geocoding end...');
+          endCoords = await geocodeAddress(endAddr);
+        }
+
+        showStatus('route-status', 'Fetching route...');
+        const routeData = await fetchRoute(startCoords, endCoords, apiKey);
+        const coords = decodePolyline(routeData.geometry);
+        const distances = computeCumulativeDistances(coords);
+
+        // Save route to localStorage so tracker page can use it
+        const routeInfo = {
+          coords, distances,
+          totalDistance: routeData.distance,
+          totalDuration: routeData.duration,
+          startCoords, endCoords
+        };
+        localStorage.setItem('active-route', JSON.stringify(routeInfo));
+
+        const miles = (routeData.distance / 1609.34).toFixed(1);
+        const minutes = Math.round(routeData.duration / 60);
+        showStatus('route-status', `Route saved! ${miles} mi, ~${minutes} min. Go to Tracker to start.`);
+      } catch (err) {
+        showStatus('route-status', `Error: ${err.message}`, true);
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Get Route';
+      }
+    }
+
+    function showStatus(id, msg, isError) {
+      const el = document.getElementById(id);
+      el.textContent = msg;
+      el.style.color = isError ? '#e94560' : '#4caf50';
+    }
+
+    // --- Init ---
+    document.addEventListener('DOMContentLoaded', () => {
+      setupAutocomplete('start-address', 'start-suggestions', 'start');
+      setupAutocomplete('end-address', 'end-suggestions', 'end');
+      renderSavedAddresses();
+    });
+  </script>
+</body>
+</html>

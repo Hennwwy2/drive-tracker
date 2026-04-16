@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="theme-color" content="#1a1a2e">
+  <title>Settings — Drive Tracker</title>
+  <link rel="manifest" href="manifest.json">
+  <link rel="apple-touch-icon" href="icon-192.png">
+  <link rel="stylesheet" href="shared.css">
+</head>
+<body>
+  <div class="page-header">
+    <h1>Settings</h1>
+  </div>
+
+  <div class="page-content">
+    <!-- ORS API Key -->
+    <div class="section">
+      <div class="section-title">OpenRouteService</div>
+      <div class="input-group">
+        <label for="ors-key">API Key</label>
+        <input type="text" id="ors-key" placeholder="Paste your free ORS API key">
+      </div>
+      <button onclick="saveOrsKey()">Save API Key</button>
+      <div id="ors-status" class="status-line"></div>
+    </div>
+
+    <!-- Firebase -->
+    <div class="section">
+      <div class="section-title">Firebase Realtime Database</div>
+      <div class="input-group">
+        <label for="firebase-url">Database URL</label>
+        <input type="text" id="firebase-url" placeholder="https://your-project.firebaseio.com">
+      </div>
+      <div class="input-group">
+        <label for="firebase-api-key">API Key</label>
+        <input type="text" id="firebase-api-key" placeholder="Your Firebase API key">
+      </div>
+      <button onclick="saveFirebase()">Save & Connect Firebase</button>
+      <div id="firebase-status" class="status-line"></div>
+    </div>
+
+    <!-- Clear Data -->
+    <div class="section">
+      <div class="section-title">Data</div>
+      <button class="btn-secondary" onclick="clearRoute()">Clear Active Route</button>
+      <button class="btn-secondary" style="margin-top: 8px;" onclick="clearAll()">Clear All Saved Data</button>
+      <div id="clear-status" class="status-line"></div>
+    </div>
+  </div>
+
+  <!-- Nav Bar -->
+  <nav class="nav-bar">
+    <a href="index.html" class="nav-item">
+      <span class="nav-icon">&#8962;</span>
+      Home
+    </a>
+    <a href="tracker.html" class="nav-item">
+      <span class="nav-icon">&#9737;</span>
+      Tracker
+    </a>
+    <a href="route-setup.html" class="nav-item">
+      <span class="nav-icon">&#9881;</span>
+      Route
+    </a>
+    <a href="settings.html" class="nav-item active">
+      <span class="nav-icon">&#9881;</span>
+      Settings
+    </a>
+  </nav>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      // Restore saved values
+      const orsKey = localStorage.getItem('ors-api-key');
+      if (orsKey) document.getElementById('ors-key').value = orsKey;
+
+      const fbConfig = localStorage.getItem('firebase-config');
+      if (fbConfig) {
+        const config = JSON.parse(fbConfig);
+        if (config.databaseURL) document.getElementById('firebase-url').value = config.databaseURL;
+        if (config.apiKey && config.apiKey !== 'dummy') document.getElementById('firebase-api-key').value = config.apiKey;
+      }
+    });
+
+    function saveOrsKey() {
+      const key = document.getElementById('ors-key').value.trim();
+      if (!key) {
+        showStatus('ors-status', 'Please enter an API key.', true);
+        return;
+      }
+      localStorage.setItem('ors-api-key', key);
+      showStatus('ors-status', 'API key saved!');
+    }
+
+    function saveFirebase() {
+      const dbUrl = document.getElementById('firebase-url').value.trim();
+      const apiKey = document.getElementById('firebase-api-key').value.trim();
+      if (!dbUrl) {
+        showStatus('firebase-status', 'Please enter the database URL.', true);
+        return;
+      }
+      const config = { apiKey: apiKey || 'dummy', databaseURL: dbUrl };
+      localStorage.setItem('firebase-config', JSON.stringify(config));
+      showStatus('firebase-status', 'Firebase config saved! It will connect on the Tracker page.');
+    }
+
+    function clearRoute() {
+      localStorage.removeItem('active-route');
+      showStatus('clear-status', 'Active route cleared.');
+    }
+
+    function clearAll() {
+      if (confirm('This will remove all saved data including API keys, addresses, and routes. Continue?')) {
+        localStorage.clear();
+        document.getElementById('ors-key').value = '';
+        document.getElementById('firebase-url').value = '';
+        document.getElementById('firebase-api-key').value = '';
+        showStatus('clear-status', 'All data cleared.');
+      }
+    }
+
+    function showStatus(id, msg, isError) {
+      const el = document.getElementById(id);
+      el.textContent = msg;
+      el.style.color = isError ? '#e94560' : '#4caf50';
+    }
+  </script>
+</body>
+</html>

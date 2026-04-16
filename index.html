@@ -9,128 +9,190 @@
   <title>Drive Tracker</title>
   <link rel="manifest" href="manifest.json">
   <link rel="apple-touch-icon" href="icon-192.png">
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-  <link rel="stylesheet" href="style.css">
-  <!-- Firebase SDK (compat version — works with plain JS, no npm needed) -->
-  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+  <link rel="stylesheet" href="shared.css">
+  <style>
+    .home-content {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 40px 20px;
+      min-height: calc(100dvh - 70px);
+    }
+
+    .app-logo {
+      width: 80px;
+      height: 80px;
+      background: #e94560;
+      border-radius: 20px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 40px;
+      margin-bottom: 16px;
+    }
+
+    .app-title {
+      font-size: 28px;
+      font-weight: 800;
+      color: #e94560;
+      margin-bottom: 6px;
+    }
+
+    .app-subtitle {
+      font-size: 14px;
+      color: #888;
+      margin-bottom: 40px;
+    }
+
+    .home-cards {
+      width: 100%;
+      max-width: 400px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .home-card {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      background: #16213e;
+      border-radius: 12px;
+      padding: 18px 20px;
+      text-decoration: none;
+      color: #e0e0e0;
+      transition: background 0.2s;
+    }
+
+    .home-card:hover {
+      background: #1a2a4e;
+    }
+
+    .card-icon {
+      font-size: 28px;
+      width: 50px;
+      height: 50px;
+      background: #0f3460;
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .card-text h3 {
+      font-size: 16px;
+      font-weight: 700;
+      margin-bottom: 2px;
+    }
+
+    .card-text p {
+      font-size: 12px;
+      color: #888;
+    }
+
+    .status-badges {
+      display: flex;
+      gap: 8px;
+      margin-top: 20px;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+
+    .badge {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      padding: 5px 12px;
+      background: #16213e;
+      border-radius: 20px;
+      font-size: 11px;
+      color: #888;
+    }
+  </style>
 </head>
 <body>
-  <!-- Setup Panel -->
-  <div id="setup-panel" class="panel">
-    <div class="panel-header" onclick="togglePanel('setup-panel')">
-      <h2>Route Setup</h2>
-      <span class="toggle-icon">&#9660;</span>
-    </div>
-    <div class="panel-body">
-      <div id="saved-addresses-section">
-        <label>Saved Addresses</label>
-        <div id="saved-addresses-list" class="saved-list"></div>
-        <div class="save-address-row">
-          <input type="text" id="save-label" placeholder="Label (e.g. Home, School)">
-          <button onclick="handleSaveAddress('start')">Save Start</button>
-          <button onclick="handleSaveAddress('end')">Save End</button>
-        </div>
-      </div>
-      <div class="input-group autocomplete-wrap">
-        <label for="start-address">Start Address</label>
-        <input type="text" id="start-address" placeholder="e.g. 123 Main St, Springfield" autocomplete="off">
-        <div class="autocomplete-list" id="start-suggestions"></div>
-      </div>
-      <div class="input-group autocomplete-wrap">
-        <label for="end-address">End Address</label>
-        <input type="text" id="end-address" placeholder="e.g. 456 Oak Ave, Shelbyville" autocomplete="off">
-        <div class="autocomplete-list" id="end-suggestions"></div>
-      </div>
-      <div class="input-group">
-        <label for="ors-key">OpenRouteService API Key</label>
-        <input type="text" id="ors-key" placeholder="Paste your free API key">
-      </div>
-      <div class="input-group">
-        <label for="firebase-url">Firebase Database URL</label>
-        <input type="text" id="firebase-url" placeholder="https://your-project.firebaseio.com">
-      </div>
-      <div class="input-group">
-        <label for="firebase-api-key">Firebase API Key</label>
-        <input type="text" id="firebase-api-key" placeholder="Your Firebase API key">
-      </div>
-      <button id="connect-firebase-btn" onclick="handleConnectFirebase()">Connect Firebase</button>
-      <button id="get-route-btn" onclick="handleGetRoute()" style="margin-top: 8px;">Get Route</button>
-      <div id="route-status" class="status-line"></div>
-    </div>
-  </div>
+  <div class="home-content">
+    <div class="app-logo">&#9678;</div>
+    <div class="app-title">Drive Tracker</div>
+    <div class="app-subtitle">Predict location between updates</div>
 
-  <!-- Quick Location Search (always visible above map) -->
-  <div id="quick-search">
-    <input type="text" id="quick-search-input" placeholder="Type nearby street/intersection from Splashin..." autocomplete="off">
-    <button id="quick-search-btn" onclick="handleQuickSearch()">Send</button>
-    <div class="autocomplete-list" id="quick-suggestions"></div>
-  </div>
-
-  <!-- Map -->
-  <div id="map"></div>
-
-  <!-- Update Panel -->
-  <div id="update-panel" class="panel">
-    <div class="panel-header" onclick="togglePanel('update-panel')">
-      <h2>Location Updates</h2>
-      <span class="toggle-icon">&#9660;</span>
+    <div class="home-cards">
+      <a href="tracker.html" class="home-card">
+        <div class="card-icon">&#9737;</div>
+        <div class="card-text">
+          <h3>Tracker</h3>
+          <p>Map, route, and live location tracking</p>
+        </div>
+      </a>
+      <a href="route-setup.html" class="home-card">
+        <div class="card-icon">&#9881;</div>
+        <div class="card-text">
+          <h3>Route Setup</h3>
+          <p>Set start/end addresses and saved locations</p>
+        </div>
+      </a>
+      <a href="settings.html" class="home-card">
+        <div class="card-icon">&#9881;</div>
+        <div class="card-text">
+          <h3>Settings</h3>
+          <p>API keys, Firebase, and app config</p>
+        </div>
+      </a>
     </div>
-    <div class="panel-body">
-      <div id="firebase-status" class="status-line">
-        <span class="status-dot offline"></span> Firebase not connected
+
+    <div class="status-badges">
+      <div class="badge" id="badge-ors">
+        <span class="status-dot offline"></span> ORS
       </div>
-      <button id="tap-map-btn" onclick="toggleTapMode()">Tap Map to Update Location</button>
-      <div id="tap-mode-hint" class="status-line hidden">Tap the map where you see the pin in Splashin</div>
-      <div class="manual-input-row">
-        <input type="text" id="manual-lat" placeholder="Lat">
-        <input type="text" id="manual-lng" placeholder="Lng">
-        <button onclick="handleManualSubmit()">Submit</button>
+      <div class="badge" id="badge-firebase">
+        <span class="status-dot offline"></span> Firebase
       </div>
-      <button id="paste-btn" onclick="handlePasteSubmit()">Paste &amp; Submit</button>
-      <div id="last-update-info" class="status-line"></div>
-    </div>
-  </div>
-
-  <!-- Info Strip -->
-  <div id="info-strip" class="panel">
-    <div class="panel-header" onclick="togglePanel('info-strip')">
-      <h2>Info</h2>
-      <span class="toggle-icon">&#9660;</span>
-    </div>
-    <div class="panel-body">
-      <div class="info-grid">
-        <div class="info-item">
-          <span class="info-label">Speed</span>
-          <span id="info-speed" class="info-value">--</span>
-        </div>
-        <div class="info-item">
-          <span class="info-label">ETA</span>
-          <span id="info-eta" class="info-value">--</span>
-        </div>
-        <div class="info-item">
-          <span class="info-label">Remaining</span>
-          <span id="info-remaining" class="info-value">--</span>
-        </div>
-        <div class="info-item">
-          <span class="info-label">Prediction Error</span>
-          <span id="info-error" class="info-value">--</span>
-        </div>
+      <div class="badge" id="badge-route">
+        <span class="status-dot offline"></span> Route
       </div>
     </div>
   </div>
 
-  <!-- Off-route warning banner -->
-  <div id="off-route-banner" class="banner hidden">
-    <span>Driver appears off-route!</span>
-    <button onclick="handleReroute()">Re-route</button>
-    <button onclick="dismissBanner()">Dismiss</button>
-  </div>
+  <!-- Nav Bar -->
+  <nav class="nav-bar">
+    <a href="index.html" class="nav-item active">
+      <span class="nav-icon">&#8962;</span>
+      Home
+    </a>
+    <a href="tracker.html" class="nav-item">
+      <span class="nav-icon">&#9737;</span>
+      Tracker
+    </a>
+    <a href="route-setup.html" class="nav-item">
+      <span class="nav-icon">&#9881;</span>
+      Route
+    </a>
+    <a href="settings.html" class="nav-item">
+      <span class="nav-icon">&#9881;</span>
+      Settings
+    </a>
+  </nav>
 
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <script src="route.js"></script>
-  <script src="predictor.js"></script>
-  <script src="firebase.js"></script>
-  <script src="app.js"></script>
+  <script>
+    // Update status badges based on localStorage
+    document.addEventListener('DOMContentLoaded', () => {
+      if (localStorage.getItem('ors-api-key')) {
+        document.querySelector('#badge-ors .status-dot').classList.replace('offline', 'online');
+      }
+      if (localStorage.getItem('firebase-config')) {
+        document.querySelector('#badge-firebase .status-dot').classList.replace('offline', 'online');
+      }
+      if (localStorage.getItem('active-route')) {
+        document.querySelector('#badge-route .status-dot').classList.replace('offline', 'online');
+      }
+
+      // Register service worker
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('sw.js').catch(err => console.log('SW failed:', err));
+      }
+    });
+  </script>
 </body>
 </html>

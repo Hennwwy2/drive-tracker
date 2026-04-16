@@ -1,12 +1,15 @@
-const CACHE_NAME = 'drive-tracker-v1';
+const CACHE_NAME = 'drive-tracker-v2';
 const ASSETS = [
   '/',
   '/index.html',
-  '/style.css',
-  '/app.js',
+  '/tracker.html',
+  '/route-setup.html',
+  '/settings.html',
+  '/shared.css',
   '/route.js',
   '/predictor.js',
   '/firebase.js',
+  '/tracker.js',
   '/manifest.json',
   'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css',
   'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js'
@@ -31,7 +34,7 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
 
-  // Network-first for API calls and Firebase
+  // Network-first for API calls, Firebase, and map tiles
   if (url.hostname !== location.hostname &&
       !url.href.startsWith('https://unpkg.com/leaflet')) {
     return;

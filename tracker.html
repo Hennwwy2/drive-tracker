@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="theme-color" content="#1a1a2e">
+  <title>Tracker — Drive Tracker</title>
+  <link rel="manifest" href="manifest.json">
+  <link rel="apple-touch-icon" href="icon-192.png">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <link rel="stylesheet" href="shared.css">
+  <style>
+    body {
+      display: grid;
+      grid-template-rows: auto auto 1fr auto auto;
+      height: 100vh;
+      height: -webkit-fill-available;
+      height: 100dvh;
+      min-height: 0;
+      padding-bottom: 0;
+      overflow: hidden;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    /* Quick search */
+    #quick-search {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 6px;
+      padding: 8px 12px;
+      background: #16213e;
+      border-bottom: 1px solid #0f3460;
+      position: relative;
+    }
+    #quick-search-input { font-size: 15px; padding: 12px; }
+    #quick-search-btn { width: auto; padding: 12px 20px; font-size: 15px; font-weight: 700; }
+    #quick-search .autocomplete-list { position: absolute; top: 100%; left: 12px; right: 12px; }
+
+    /* Map */
+    #map { width: 100%; min-height: 0; }
+
+    /* Info bar */
+    #info-bar {
+      background: #16213e;
+      border-top: 1px solid #0f3460;
+      padding: 10px 16px;
+    }
+
+    /* Tap mode */
+    #tap-bar {
+      display: flex;
+      gap: 6px;
+      padding: 6px 12px;
+      background: #16213e;
+      border-bottom: 1px solid #0f3460;
+    }
+    #tap-bar button { font-size: 12px; padding: 8px; }
+    #tap-map-btn.active { background: #e94560; animation: pulse-btn 1.5s infinite; }
+    @keyframes pulse-btn { 0%,100%{opacity:1} 50%{opacity:0.7} }
+
+    /* Driver blip */
+    .driver-blip {
+      width: 16px; height: 16px;
+      background: #4285f4; border: 3px solid white; border-radius: 50%;
+      box-shadow: 0 0 8px rgba(66,133,244,0.6);
+      animation: pulse 2s infinite;
+    }
+    @keyframes pulse { 0%,100%{box-shadow:0 0 8px rgba(66,133,244,0.6)} 50%{box-shadow:0 0 20px rgba(66,133,244,0.9)} }
+    .confirmed-blip {
+      width: 10px; height: 10px;
+      background: rgba(255,255,255,0.5); border: 2px solid rgba(255,255,255,0.7); border-radius: 50%;
+    }
+
+    /* Off-route banner */
+    .banner {
+      position: fixed; top: 0; left: 0; right: 0;
+      background: #ff6b35; color: white;
+      padding: 12px 16px; display: flex; align-items: center;
+      gap: 10px; font-size: 13px; font-weight: 600; z-index: 1000;
+    }
+    .banner button { width: auto; padding: 6px 14px; font-size: 12px; background: rgba(255,255,255,0.25); }
+    .banner button:first-of-type { background: white; color: #ff6b35; }
+
+    /* Nav bar at bottom */
+    .nav-bar { padding-bottom: env(safe-area-inset-bottom); }
+
+    /* No route message */
+    #no-route-msg {
+      position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%);
+      text-align: center; z-index: 500; color: #888; font-size: 14px;
+    }
+    #no-route-msg a { color: #e94560; font-weight: 600; }
+  </style>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+</head>
+<body>
+  <!-- Quick Search -->
+  <div id="quick-search">
+    <input type="text" id="quick-search-input" placeholder="Type nearby street from Splashin..." autocomplete="off">
+    <button id="quick-search-btn" onclick="handleQuickSearch()">Send</button>
+    <div class="autocomplete-list" id="quick-suggestions"></div>
+  </div>
+
+  <!-- Tap bar -->
+  <div id="tap-bar">
+    <button id="tap-map-btn" class="btn-secondary" onclick="toggleTapMode()" style="flex:1">Tap Map to Update</button>
+    <button class="btn-secondary" onclick="handlePasteSubmit()" style="flex:1">Paste Coords</button>
+  </div>
+
+  <!-- Map -->
+  <div id="map" style="position: relative;">
+    <div id="no-route-msg" class="hidden">
+      No route loaded.<br><a href="route-setup.html">Set up a route first</a>
+    </div>
+  </div>
+
+  <!-- Info Bar -->
+  <div id="info-bar">
+    <div class="info-grid">
+      <div class="info-item">
+        <span class="info-label">Speed</span>
+        <span id="info-speed" class="info-value">--</span>
+      </div>
+      <div class="info-item">
+        <span class="info-label">ETA</span>
+        <span id="info-eta" class="info-value">--</span>
+      </div>
+      <div class="info-item">
+        <span class="info-label">Remaining</span>
+        <span id="info-remaining" class="info-value">--</span>
+      </div>
+      <div class="info-item">
+        <span class="info-label">Error</span>
+        <span id="info-error" class="info-value">--</span>
+      </div>
+    </div>
+    <div id="last-update-info" class="status-line"></div>
+    <div id="firebase-status" class="status-line">
+      <span class="status-dot offline"></span> Firebase not connected
+    </div>
+  </div>
+
+  <!-- Nav Bar -->
+  <nav class="nav-bar">
+    <a href="index.html" class="nav-item">
+      <span class="nav-icon">&#8962;</span>
+      Home
+    </a>
+    <a href="tracker.html" class="nav-item active">
+      <span class="nav-icon">&#9737;</span>
+      Tracker
+    </a>
+    <a href="route-setup.html" class="nav-item">
+      <span class="nav-icon">&#9881;</span>
+      Route
+    </a>
+    <a href="settings.html" class="nav-item">
+      <span class="nav-icon">&#9881;</span>
+      Settings
+    </a>
+  </nav>
+
+  <!-- Off-route banner -->
+  <div id="off-route-banner" class="banner hidden">
+    <span>Driver appears off-route!</span>
+    <button onclick="handleReroute()">Re-route</button>
+    <button onclick="document.getElementById('off-route-banner').classList.add('hidden')">Dismiss</button>
+  </div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="route.js"></script>
+  <script src="predictor.js"></script>
+  <script src="firebase.js"></script>
+  <script src="tracker.js"></script>
+</body>
+</html>
