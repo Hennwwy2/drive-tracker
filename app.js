@@ -185,20 +185,10 @@ function setupQuickSearch() {
 
     quickSearchTimer = setTimeout(async () => {
       try {
-        // Bias results toward the route area if we have one
-        let viewbox = '';
-        if (state.routeCoords.length) {
-          const bounds = state.routePolyline
-            ? state.routePolyline.getBounds()
-            : state.map.getBounds();
-          const sw = bounds.getSouthWest();
-          const ne = bounds.getNorthEast();
-          // Expand bounds a bit for flexibility
-          const pad = 0.5;
-          viewbox = `&viewbox=${sw.lng - pad},${ne.lat + pad},${ne.lng + pad},${sw.lat - pad}&bounded=0`;
-        }
+        // Lock results to Chicago area
+        const chicagoViewbox = '&viewbox=-88.0,42.1,-87.5,41.6&bounded=1';
 
-        const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=5${viewbox}`;
+        const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=5${chicagoViewbox}`;
         const resp = await fetch(url, {
           headers: { 'User-Agent': 'DriveTrackerPWA/1.0' }
         });
