@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="theme-color" content="#1a1a2e">
+  <title>Drive Tracker</title>
+  <link rel="manifest" href="manifest.json">
+  <link rel="apple-touch-icon" href="icon-192.png">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <link rel="stylesheet" href="style.css">
+  <!-- Firebase SDK (compat version — works with plain JS, no npm needed) -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+</head>
+<body>
+  <!-- Setup Panel -->
+  <div id="setup-panel" class="panel">
+    <div class="panel-header" onclick="togglePanel('setup-panel')">
+      <h2>Route Setup</h2>
+      <span class="toggle-icon">&#9660;</span>
+    </div>
+    <div class="panel-body">
+      <div id="saved-addresses-section">
+        <label>Saved Addresses</label>
+        <div id="saved-addresses-list" class="saved-list"></div>
+        <div class="save-address-row">
+          <input type="text" id="save-label" placeholder="Label (e.g. Home, School)">
+          <button onclick="handleSaveAddress('start')">Save Start</button>
+          <button onclick="handleSaveAddress('end')">Save End</button>
+        </div>
+      </div>
+      <div class="input-group autocomplete-wrap">
+        <label for="start-address">Start Address</label>
+        <input type="text" id="start-address" placeholder="e.g. 123 Main St, Springfield" autocomplete="off">
+        <div class="autocomplete-list" id="start-suggestions"></div>
+      </div>
+      <div class="input-group autocomplete-wrap">
+        <label for="end-address">End Address</label>
+        <input type="text" id="end-address" placeholder="e.g. 456 Oak Ave, Shelbyville" autocomplete="off">
+        <div class="autocomplete-list" id="end-suggestions"></div>
+      </div>
+      <div class="input-group">
+        <label for="ors-key">OpenRouteService API Key</label>
+        <input type="text" id="ors-key" placeholder="Paste your free API key">
+      </div>
+      <div class="input-group">
+        <label for="firebase-url">Firebase Database URL</label>
+        <input type="text" id="firebase-url" placeholder="https://your-project.firebaseio.com">
+      </div>
+      <div class="input-group">
+        <label for="firebase-api-key">Firebase API Key</label>
+        <input type="text" id="firebase-api-key" placeholder="Your Firebase API key">
+      </div>
+      <button id="connect-firebase-btn" onclick="handleConnectFirebase()">Connect Firebase</button>
+      <button id="get-route-btn" onclick="handleGetRoute()" style="margin-top: 8px;">Get Route</button>
+      <div id="route-status" class="status-line"></div>
+    </div>
+  </div>
+
+  <!-- Map -->
+  <div id="map"></div>
+
+  <!-- Update Panel -->
+  <div id="update-panel" class="panel">
+    <div class="panel-header" onclick="togglePanel('update-panel')">
+      <h2>Location Updates</h2>
+      <span class="toggle-icon">&#9660;</span>
+    </div>
+    <div class="panel-body">
+      <div id="firebase-status" class="status-line">
+        <span class="status-dot offline"></span> Firebase not connected
+      </div>
+      <div class="manual-input-row">
+        <input type="text" id="manual-lat" placeholder="Lat">
+        <input type="text" id="manual-lng" placeholder="Lng">
+        <button onclick="handleManualSubmit()">Submit</button>
+      </div>
+      <button id="paste-btn" onclick="handlePasteSubmit()">Paste &amp; Submit</button>
+      <div id="last-update-info" class="status-line"></div>
+    </div>
+  </div>
+
+  <!-- Info Strip -->
+  <div id="info-strip" class="panel">
+    <div class="panel-header" onclick="togglePanel('info-strip')">
+      <h2>Info</h2>
+      <span class="toggle-icon">&#9660;</span>
+    </div>
+    <div class="panel-body">
+      <div class="info-grid">
+        <div class="info-item">
+          <span class="info-label">Speed</span>
+          <span id="info-speed" class="info-value">--</span>
+        </div>
+        <div class="info-item">
+          <span class="info-label">ETA</span>
+          <span id="info-eta" class="info-value">--</span>
+        </div>
+        <div class="info-item">
+          <span class="info-label">Remaining</span>
+          <span id="info-remaining" class="info-value">--</span>
+        </div>
+        <div class="info-item">
+          <span class="info-label">Prediction Error</span>
+          <span id="info-error" class="info-value">--</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Off-route warning banner -->
+  <div id="off-route-banner" class="banner hidden">
+    <span>Driver appears off-route!</span>
+    <button onclick="handleReroute()">Re-route</button>
+    <button onclick="dismissBanner()">Dismiss</button>
+  </div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="route.js"></script>
+  <script src="predictor.js"></script>
+  <script src="firebase.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
