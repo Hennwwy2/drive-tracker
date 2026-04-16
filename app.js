@@ -167,6 +167,55 @@ const state = {
   map: null
 };
 
+// --- Tap-on-Map Mode ---
+let tapModeActive = false;
+let tapMarker = null;
+
+function toggleTapMode() {
+  tapModeActive = !tapModeActive;
+  const btn = document.getElementById('tap-map-btn');
+  const hint = document.getElementById('tap-mode-hint');
+
+  if (tapModeActive) {
+    btn.textContent = 'Tap Mode ON — tap the map now';
+    btn.classList.add('active');
+    hint.classList.remove('hidden');
+    state.map.getContainer().style.cursor = 'crosshair';
+  } else {
+    btn.textContent = 'Tap Map to Update Location';
+    btn.classList.remove('active');
+    hint.classList.add('hidden');
+    state.map.getContainer().style.cursor = '';
+    if (tapMarker) {
+      state.map.removeLayer(tapMarker);
+      tapMarker = null;
+    }
+  }
+}
+
+function handleMapTap(e) {
+  if (!tapModeActive) return;
+
+  const lat = e.latlng.lat;
+  const lng = e.latlng.lng;
+
+  // Show a temporary marker where they tapped
+  if (tapMarker) state.map.removeLayer(tapMarker);
+  tapMarker = L.circleMarker([lat, lng], {
+    radius: 8,
+    fillColor: '#ff6b35',
+    color: 'white',
+    weight: 2,
+    fillOpacity: 0.8
+  }).addTo(state.map);
+
+  // Submit the location
+  processLocationUpdate(lat, lng);
+
+  // Turn off tap mode
+  toggleTapMode();
+}
+
 // --- Map Initialization ---
 function initMap() {
   state.map = L.map('map', {
@@ -180,6 +229,9 @@ function initMap() {
 
   // Zoom control on right side
   L.control.zoom({ position: 'topright' }).addTo(state.map);
+
+  // Map tap handler for location updates
+  state.map.on('click', handleMapTap);
 }
 
 // --- Panel toggle ---
